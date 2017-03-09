@@ -246,7 +246,7 @@ public:
 	Crag() :
 		_nodeTypes(_rag),
 		_edgeTypes(_rag),
-		_affiliatedEdges(_rag) {}
+		_affiliatedEdges(_rag), _nodeBorder(_rag) {}
 
 	virtual ~Crag() {}
 
@@ -349,6 +349,25 @@ public:
 	 * Get the type of an edge.
 	 */
 	EdgeType type(CragEdge e) const { return _edgeTypes[e]; }
+
+	/**
+	 * Check whether node touches border.
+	 */
+	bool isBorder(CragNode n) const {
+
+		if (!_borderValid) {
+			UTIL_THROW_EXCEPTION(
+					UsageError,
+					"Border information was not set.");
+		}
+		return _nodeBorder[n];}
+
+	void setBorderNode(CragNode n, bool isborder) {
+		_nodeBorder[n] = isborder;
+	}
+	void setBorderValid(bool isvalid){
+		_borderValid = isvalid;
+	}
 
 	/**
 	 * Set the grid graph, to which the affiliated edges between leaf node 
@@ -533,7 +552,10 @@ private:
 
 	// voxel edges between adjacent leaf nodes
 	EdgeMap<std::vector<vigra::GridGraph<3>::Edge>> _affiliatedEdges;
+
+	// nodes that touch the border
+	bool _borderValid = false;
+	NodeMap<bool> _nodeBorder;
 };
 
 #endif // CANDIDATE_MC_CRAG_CRAG_H__
-

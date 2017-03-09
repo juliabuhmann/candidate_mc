@@ -7,6 +7,7 @@
 #include <fstream>
 #include <boost/filesystem.hpp>
 
+#include <crag/BorderAnnotator.h>
 #include <util/Logger.h>
 #include <util/ProgramOptions.h>
 #include <util/exceptions.h>
@@ -65,6 +66,10 @@ util::ProgramOption optionDryRun(
 		util::_long_name        = "dryRun",
 		util::_description_text = "Compute the costs and store them, but do not run the solver.");
 
+util::ProgramOption optionDirectedMC(
+		util::_long_name        = "directedMulticut",
+		util::_description_text = "Solve ILP with directed multicut extension.");
+
 inline double dot(const std::vector<double>& a, const std::vector<double>& b) {
 
 	UTIL_ASSERT_REL(a.size(), ==, b.size());
@@ -104,6 +109,13 @@ int main(int argc, char** argv) {
 		Hdf5CragStore cragStore(optionProjectFile.as<std::string>());
 		cragStore.retrieveCrag(crag);
 		cragStore.retrieveVolumes(volumes);
+
+		if (optionDirectedMC) {
+			LOG_USER(logger::out) << "annotating regions touching the border" << std::endl;
+			BorderAnnotator annotator;
+			annotator.annotate(crag, volumes);
+
+		}
 
 		LOG_USER(logger::out) << "reading features" << std::endl;
 
