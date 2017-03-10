@@ -10,6 +10,10 @@ util::ProgramOption optionClosedSetSolver(
 		util::_long_name        = "closedSetSolver",
 		util::_description_text = "Use the closed set solver to get a solution.");
 
+util::ProgramOption optionDirectedMC(
+		util::_long_name        = "directedMulticut",
+		util::_description_text = "Use the directed multicut solver to get a solution.");
+
 CragSolver*
 CragSolverFactory::createSolver(
 		const Crag& crag,
@@ -23,6 +27,10 @@ CragSolverFactory::createSolver(
 	} else if (optionClosedSetSolver) {
 
 		return new ClosedSetSolver(crag, parameters);
+
+	} else if (optionDirectedMC) {
+
+		return new DirectedMultiCutSolver(crag, parameters);
 
 	} else {
 

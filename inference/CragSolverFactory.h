@@ -2,6 +2,7 @@
 #define CANDIDATE_MC_INFERENCE_CRAG_SOLVER_FACTORY_H__
 
 #include "AssignmentSolver.h"
+#include "DirectedMultiCutSolver.h"
 #include "MultiCutSolver.h"
 #include "ClosedSetSolver.h"
 

@@ -9,6 +9,7 @@
 #include "CragSolver.h"
 
 class MultiCutSolver : public CragSolver {
+	friend class DirectedMultiCutSolver;
 
 public:
 
