@@ -39,16 +39,20 @@ MultiCutSolver::MultiCutSolver(const Crag& crag, const Parameters& parameters) :
 	SolverFactory factory;
 	_solver = factory.createLinearSolverBackend();
 
-	prepareSolver();
-	setVariables();
-	if (!_parameters.noConstraints)
-		setInitialConstraints();
+
 }
 
 MultiCutSolver::~MultiCutSolver() {
 
 	if (_solver)
 		delete _solver;
+}
+
+void MultiCutSolver::initializeILP() {
+	prepareSolver();
+	setVariables();
+	if (!_parameters.noConstraints)
+		setInitialConstraints();
 }
 
 void

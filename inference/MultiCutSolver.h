@@ -28,6 +28,7 @@ public:
 	 * Get the value of the current solution.
 	 */
 	double getValue() override { return _solution.getValue(); }
+	void initializeILP();
 
 private:
 
@@ -40,6 +41,7 @@ private:
 		int operator[](const T&) const { return 1; }
 
 	};
+
 
 	void prepareSolver();
 

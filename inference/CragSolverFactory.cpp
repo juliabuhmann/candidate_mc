@@ -29,11 +29,13 @@ CragSolverFactory::createSolver(
 		return new ClosedSetSolver(crag, parameters);
 
 	} else if (optionDirectedMC) {
-
-		return new DirectedMultiCutSolver(crag, parameters);
+		auto solver = new DirectedMultiCutSolver(crag, parameters);
+		solver->initializeILP();
+		return solver;
 
 	} else {
-
-		return new MultiCutSolver(crag, parameters);
+		auto solver = new MultiCutSolver(crag, parameters);
+		solver->initializeILP();
+		return solver;
 	}
 }
