@@ -17,12 +17,12 @@ DirectedMultiCutSolver::DirectedMultiCutSolver(const Crag& crag,
 }
 
 void DirectedMultiCutSolver::initializeILP() {
-	setVariables();
+	MultiCutSolver::setVariables();
 	setSpanningTreeVariables();
 	prepareSolver();
-	setSpanningTreeConstraints();
 	if (!_parameters.noConstraints)
 		setInitialConstraints();
+	setSpanningTreeConstraints();
 
 }
 
@@ -33,10 +33,21 @@ void DirectedMultiCutSolver::prepareSolver() {
 
 	// one binary indicator per node and edge (multicut) + two indicators for
 	// each edge and for each border node (directed multicut extension).
-	_objective.resize(_numNodes + _numEdges * 3 + numBorderNodes);
+	int totalNumVar = _numNodes + _numEdges * 3 + numBorderNodes;
+	_objective.resize(totalNumVar);
 	_objective.setSense(_parameters.minimize ? Minimize : Maximize);
 
-	_solver->initialize(_numNodes + _numEdges * 3 + numBorderNodes, Binary);
+	if (_parameters.directedMulticutDistanceToRootNode) {
+		_objective.resize(totalNumVar + _numNodes + 1);
+		std::map<unsigned int, VariableType> specialVarTypes;
+		for (int ii = totalNumVar; ii <= totalNumVar + _numNodes - 1; ii++) {
+			specialVarTypes[ii] = Integer;
+		}
+		_solver->initialize(totalNumVar + _numNodes + 1, Binary,
+				specialVarTypes);
+	} else {
+		_solver->initialize(totalNumVar, Binary);
+	}
 
 }
 
@@ -67,6 +78,18 @@ void DirectedMultiCutSolver::setSpanningTreeVariables() {
 
 		_nodeIdToDirVarMap[_crag.id(n)] = nextVar;
 		++nextVar;
+	}
+
+	// for each node, add a variable that represents the distance to the root node.
+	if (_parameters.directedMulticutDistanceToRootNode) {
+		for (Crag::NodeIt n(_crag); n != lemon::INVALID; ++n) {
+			_nodeIdDistanceVarMap[_crag.id(n)] = nextVar;
+			++nextVar;
+		}
+		// represents the root node.
+		_nodeIdDistanceVarMap[-1] = nextVar;
+		// set the big constant.
+		_constantLoopConstraint = _numNodes * 2;
 	}
 
 }
@@ -123,11 +146,13 @@ void DirectedMultiCutSolver::setSpanningTreeConstraints() {
 					_edgeIdToDirVarMap[_crag.id(e)];
 			// Choose the variable representing the incoming edge.
 			// If current node i < j, choose sec, if i > j, choose first.
+			int incVar;
 			if (_crag.id(n) > _crag.id(oppositeNode)) {
-				singleIncomingEdge.setCoefficient(varPair.first, 1.0);
+				incVar = varPair.first;
 			} else {
-				singleIncomingEdge.setCoefficient(varPair.second, 1.0);
+				incVar = varPair.second;
 			}
+			singleIncomingEdge.setCoefficient(incVar, 1.0);
 
 		}
 
@@ -138,6 +163,64 @@ void DirectedMultiCutSolver::setSpanningTreeConstraints() {
 	}
 	LOG_USER(directedmulticutlog) << "added " << incomingEdgesConstraints
 			<< " one-incoming-edge-per-node constraints" << std::endl;
+
+	// Add constraints to avoid loops in the spanning tree (--> to make sure that every
+	// segment is indeed connected to the root node). For each incoming edge ai-->j, the
+	// distance_i has to be exactly one less than distance_j (if ai-->j is selected).
+	// k+1 >= dj-di + a*k
+	// k+1 > di-dj + a*k
+
+	if (_parameters.directedMulticutDistanceToRootNode) {
+		// Set the root node distance to zero.
+		int distanceRootNodeConstraints = 1;
+		LinearConstraint distanceRootNodeConstraint;
+		distanceRootNodeConstraint.setCoefficient(_nodeIdDistanceVarMap[-1],
+				1.0);
+		distanceRootNodeConstraint.setRelation(Equal);
+		distanceRootNodeConstraint.setValue(0);
+		_constraints.add(distanceRootNodeConstraint);
+
+		for (Crag::NodeIt n(_crag); n != lemon::INVALID; ++n) {
+
+			if (!_crag.isLeafNode(n))
+				continue;
+
+			if (_crag.isBorder(n)) {
+				setDistanceRootConstraint(_nodeIdDistanceVarMap[-1],
+						_nodeIdDistanceVarMap[_crag.id(n)],
+						_nodeIdToDirVarMap[_crag.id(n)]);
+				distanceRootNodeConstraints += 2;
+			}
+
+			// Get all adjacent leaf nodes.
+
+			for (Crag::CragEdge e : _crag.adjEdges(n)) {
+				Crag::Node oppositeNode = _crag.oppositeNode(n, e);
+				if (!_crag.isLeafNode(oppositeNode))
+					continue;
+				std::pair<unsigned int, unsigned int> varPair =
+						_edgeIdToDirVarMap[_crag.id(e)];
+				// Choose the variable representing the incoming edge.
+				// If current node i < j, choose sec, if i > j, choose first.
+				int incVar;
+				if (_crag.id(n) > _crag.id(oppositeNode)) {
+					incVar = varPair.first;
+				} else {
+					incVar = varPair.second;
+				}
+				setDistanceRootConstraint(
+						_nodeIdDistanceVarMap[_crag.id(oppositeNode)],
+						_nodeIdDistanceVarMap[_crag.id(n)], incVar);
+
+				distanceRootNodeConstraints += 2;
+
+			}
+
+		}
+		LOG_USER(directedmulticutlog) << "added " << distanceRootNodeConstraints
+				<< " loop constraints" << std::endl;
+
+	}
 
 	// Connect merge decision level to the directed spanning tree. If a spanning tree edge is
 	// switched on, the two adjacent regions should be merged (part of the same segment).
@@ -174,7 +257,7 @@ MultiCutSolver::Status DirectedMultiCutSolver::solve(CragSolution& solution) {
 		LOG_USER(directedmulticutlog) << "------------------------ iteration "
 				<< i << std::endl;
 
-		findCut(solution);
+		MultiCutSolver::findCut(solution);
 
 		// extract spanning tree.
 		int numSelectedSpanningTreeEdges = 0;
@@ -218,7 +301,7 @@ MultiCutSolver::Status DirectedMultiCutSolver::solve(CragSolution& solution) {
 		LOG_ALL(directedmulticutlog) << "number of total spanning edges: "
 				<< numSelectedSpanningTreeEdges << std::endl;
 
-		if (!findViolatedConstraints(solution)) {
+		if (!MultiCutSolver::findViolatedConstraints(solution)) {
 
 			LOG_USER(directedmulticutlog) << "optimal solution with value "
 					<< _solution.getValue() << " found" << std::endl;
@@ -249,6 +332,8 @@ MultiCutSolver::Status DirectedMultiCutSolver::solve(CragSolution& solution) {
 
 			int numRootNodeConnection = 0;
 			for (Crag::NodeIt n(_crag); n != lemon::INVALID; ++n) {
+				if (!_crag.isLeafNode(n))
+					continue;
 				if (_crag.isBorder(n)) {
 					LOG_ALL(directedmulticutlog) << "v: "
 							<< _nodeIdToDirVarMap[_crag.id(n)] << " s: "
@@ -259,6 +344,12 @@ MultiCutSolver::Status DirectedMultiCutSolver::solve(CragSolution& solution) {
 						++numRootNodeConnection;
 					}
 				}
+				if (_parameters.directedMulticutDistanceToRootNode) {
+					int distance = _solution[_nodeIdDistanceVarMap[_crag.id(n)]];
+					_spanningTreeDistanceToRootNode[_crag.id(n)] = distance;
+				}
+				_spanningTreeDistanceToRootNode[-1] =
+						_solution[_nodeIdDistanceVarMap[-1]];
 
 			}
 
@@ -269,6 +360,11 @@ MultiCutSolver::Status DirectedMultiCutSolver::solve(CragSolution& solution) {
 			for (const auto &p : _spanningTreeNodeToParNode)
 				LOG_ALL(directedmulticutlog) << "child: " << p.first
 						<< " parent: " << p.second << std::endl;
+			if (_parameters.directedMulticutDistanceToRootNode) {
+				for (const auto &p : _spanningTreeDistanceToRootNode)
+					LOG_ALL(directedmulticutlog) << "node: " << p.first
+							<< " root distance: " << p.second << std::endl;
+			}
 
 			return SolutionFound;
 		}
@@ -277,4 +373,25 @@ MultiCutSolver::Status DirectedMultiCutSolver::solve(CragSolution& solution) {
 	LOG_USER(directedmulticutlog) << "maximum number of iterations reached"
 			<< std::endl;
 	return MaxIterationsReached;
+}
+
+void DirectedMultiCutSolver::setDistanceRootConstraint(int distRootVarParent,
+		int distRootVarChild, int incEdgeVar) {
+	LinearConstraint distanceRootNodeConstraint1;
+	distanceRootNodeConstraint1.setCoefficient(incEdgeVar,
+			_constantLoopConstraint);
+	distanceRootNodeConstraint1.setCoefficient(distRootVarChild, 1.0);
+	distanceRootNodeConstraint1.setCoefficient(distRootVarParent, -1.0);
+	distanceRootNodeConstraint1.setValue(_constantLoopConstraint + 1);
+	distanceRootNodeConstraint1.setRelation(LessEqual);
+	_constraints.add(distanceRootNodeConstraint1);
+
+	LinearConstraint distanceRootNodeConstraint2;
+	distanceRootNodeConstraint2.setCoefficient(incEdgeVar,
+			_constantLoopConstraint);
+	distanceRootNodeConstraint2.setCoefficient(distRootVarChild, -1.0);
+	distanceRootNodeConstraint2.setCoefficient(distRootVarParent, 1.0);
+	distanceRootNodeConstraint2.setValue(_constantLoopConstraint - 1);
+	distanceRootNodeConstraint2.setRelation(LessEqual);
+	_constraints.add(distanceRootNodeConstraint2);
 }

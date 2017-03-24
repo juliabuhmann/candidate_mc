@@ -21,10 +21,20 @@ private:
 	void setSpanningTreeConstraints();
 	void prepareSolver();
 
+	void setDistanceRootConstraint(int distRootVarParent, int distRootVarChild, int incEdgeVar);
+
 	// First item of tuple is edge with direction i-->j, and second item is direction j-->i with i<j.
 	std::map<int, std::pair<unsigned int, unsigned int>> _edgeIdToDirVarMap;
+	// Variables for border nodes.
 	std::map<int, unsigned int> _nodeIdToDirVarMap;
+	std::map<unsigned int, int> _nodeIdDistanceVarMap;
+
+	// constant for loop constraint.
+	int _constantLoopConstraint;
+
+	// Spanning tree representation.
 	std::map<int, int> _spanningTreeNodeToParNode;
+	std::map<unsigned int, int> _spanningTreeDistanceToRootNode;
 };
 
 #endif // CANDIDATE_MC_SOLVER_DIRECTED_MULTI_CUT_H__
