@@ -19,7 +19,8 @@ public:
 			numIterations(100),
 			maxConstraintsPerIteration(0),
 			noConstraints(false),
-			minimize(true) {}
+			minimize(true),
+			directedMulticutDistanceToRootNode(true) {}
 
 		/**
 		 * If true, force exactly one region to be chosen for each root-to-leaf 
@@ -49,6 +50,13 @@ public:
 		bool noConstraints;
 
 		bool minimize;
+
+		/**
+		 * Only used by DirectedMulticut. If set to true, loops are
+		 * avoided by adding an Integer variable to the ILP
+		 * representing the distance to the root node.
+		 */
+		bool directedMulticutDistanceToRootNode;
 	};
 
 	enum Status {
