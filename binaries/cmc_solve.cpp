@@ -67,6 +67,14 @@ util::ProgramOption optionDryRun(
 		util::_description_text = "Compute the costs and store them, but do not run the solver.");
 
 
+util::ProgramOption optionNoContraints(
+		util::_long_name        = "noConstraints",
+		util::_description_text = "Run ILP without any constraints.");
+
+util::ProgramOption optionSolutionHdf5Name(
+		util::_long_name        = "solutionHdf5Name",
+		util::_description_text = "The name of the solution within the project file.");
+
 
 inline double dot(const std::vector<double>& a, const std::vector<double>& b) {
 
@@ -176,6 +184,10 @@ int main(int argc, char** argv) {
 		CragSolver::Parameters parameters;
 		if (optionNumIterations)
 			parameters.numIterations = optionNumIterations;
+		if (optionNoContraints){
+			parameters.noConstraints = true;
+
+		}
 		std::unique_ptr<CragSolver> solver(CragSolverFactory::createSolver(crag, volumes, parameters));
 
 		solver->setCosts(costs);
@@ -188,8 +200,13 @@ int main(int argc, char** argv) {
 
 		LOG_USER(logger::out) << "storing solution" << std::endl;
 
-		if (!optionReadOnly)
-			cragStore.saveSolution(crag, solution, "solution");
+		if (!optionReadOnly){
+			if (!optionSolutionHdf5Name) {
+				cragStore.saveSolution(crag, solution, "solution");}
+			else {
+				cragStore.saveSolution(crag, solution, optionSolutionHdf5Name);
+			}
+		}
 
 		if (optionExportSolution) {
 
