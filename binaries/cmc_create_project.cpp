@@ -10,6 +10,7 @@
 #include <util/ProgramOptions.h>
 #include <util/exceptions.h>
 #include <util/timing.h>
+#include <crag/BorderAnnotator.h>
 #include <crag/Crag.h>
 #include <crag/CragStackCombiner.h>
 #include <crag/DownSampler.h>
@@ -359,6 +360,10 @@ int main(int argc, char** argv) {
 			PlanarAdjacencyAnnotator annotator(PlanarAdjacencyAnnotator::Direct);
 			annotator.annotate(*crag, *volumes);
 		}
+
+		LOG_USER(logger::out) << "annotating regions touching the border" << std::endl;
+		BorderAnnotator annotator;
+		annotator.annotate(*crag, *volumes);
 
 		// Statistics
 
